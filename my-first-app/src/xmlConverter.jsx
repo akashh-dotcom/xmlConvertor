@@ -316,8 +316,11 @@ const XMLHTMLEditor = () => {
 
   // Handle HTML editor input - this updates XML from HTML with debouncing
   const handleHtmlInput = (e, immediate = false) => {
+    console.log('handleHtmlInput called', { isUpdatingFromXml, immediate });
+
     if (!isUpdatingFromXml) {
       const newHtml = e.currentTarget.innerHTML;
+      console.log('Processing HTML input, length:', newHtml.length);
 
       // Clear existing timer
       if (debounceTimerRef.current) {
@@ -325,10 +328,12 @@ const XMLHTMLEditor = () => {
       }
 
       const updateXml = () => {
+        console.log('updateXml starting...');
         setIsSyncing(true);
         isUpdatingFromHtmlRef.current = true;
 
         const newXml = htmlToXml(newHtml);
+        console.log('Converted to XML, length:', newXml.length);
 
         try {
           const parser = new DOMParser();
@@ -336,7 +341,10 @@ const XMLHTMLEditor = () => {
           const parserError = xmlDoc.querySelector('parsererror');
 
           if (!parserError) {
+            console.log('Updating XML content...');
             setXmlContent(newXml);
+          } else {
+            console.error('XML parsing error detected');
           }
         } catch (error) {
           console.error('XML validation error:', error);
@@ -346,16 +354,21 @@ const XMLHTMLEditor = () => {
         setTimeout(() => {
           isUpdatingFromHtmlRef.current = false;
           setIsSyncing(false);
+          console.log('Flags reset, sync complete');
         }, 50);
       };
 
       // Use immediate update for toolbar actions, debounced for typing
       if (immediate) {
+        console.log('Immediate update');
         updateXml();
       } else {
+        console.log('Debounced update (300ms)');
         // Debounce typing for better performance (300ms delay)
         debounceTimerRef.current = setTimeout(updateXml, 300);
       }
+    } else {
+      console.log('Skipping - isUpdatingFromXml is true');
     }
   };
 
