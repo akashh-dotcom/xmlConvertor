@@ -50,6 +50,7 @@ const XMLHTMLEditor = () => {
   const [htmlContent, setHtmlContent] = useState('');
   const editorRef = useRef(null);
   const [isUpdatingFromXml, setIsUpdatingFromXml] = useState(false);
+  const [isUpdatingFromHtml, setIsUpdatingFromHtml] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -293,15 +294,15 @@ const XMLHTMLEditor = () => {
 
   // Update HTML when XML changes (after initialization)
   useEffect(() => {
-    if (isInitialized && !isUpdatingFromXml) {
+    if (isInitialized && !isUpdatingFromXml && !isUpdatingFromHtml) {
       setIsUpdatingFromXml(true);
       const html = xmlToHtml(xmlContent);
       setHtmlContent(html);
-      
+
       // Reset flag after state update
       setTimeout(() => setIsUpdatingFromXml(false), 0);
     }
-  }, [xmlContent, isInitialized]);
+  }, [xmlContent, isInitialized, isUpdatingFromHtml]);
 
   // Update the editor content when HTML changes
   useEffect(() => {
@@ -313,23 +314,6 @@ const XMLHTMLEditor = () => {
     }
   }, [htmlContent]);
 
-  // Save and restore cursor position
-  const saveCursorPosition = () => {
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      return selection.getRangeAt(0);
-    }
-    return null;
-  };
-
-  const restoreCursorPosition = (range) => {
-    if (range) {
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-  };
-
   // Handle HTML editor input - this updates XML from HTML with debouncing
   const handleHtmlInput = (e, immediate = false) => {
     if (!isUpdatingFromXml) {
@@ -340,11 +324,10 @@ const XMLHTMLEditor = () => {
         clearTimeout(debounceTimerRef.current);
       }
 
-      // Save cursor position before update
-      const cursorPosition = saveCursorPosition();
-
       const updateXml = () => {
         setIsSyncing(true);
+        setIsUpdatingFromHtml(true);
+
         const newXml = htmlToXml(newHtml);
 
         try {
@@ -359,11 +342,11 @@ const XMLHTMLEditor = () => {
           console.error('XML validation error:', error);
         }
 
-        // Restore cursor position after a brief delay
+        // Reset flags after update completes
         setTimeout(() => {
-          restoreCursorPosition(cursorPosition);
+          setIsUpdatingFromHtml(false);
           setIsSyncing(false);
-        }, 10);
+        }, 50);
       };
 
       // Use immediate update for toolbar actions, debounced for typing
