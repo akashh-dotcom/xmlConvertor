@@ -51,6 +51,8 @@ const XMLHTMLEditor = () => {
   const editorRef = useRef(null);
   const [isUpdatingFromXml, setIsUpdatingFromXml] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const debounceTimerRef = useRef(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Convert XML to HTML with support for pages, tables and images
   const xmlToHtml = (xml) => {
@@ -311,22 +313,65 @@ const XMLHTMLEditor = () => {
     }
   }, [htmlContent]);
 
-  // Handle HTML editor input - this updates XML from HTML
-  const handleHtmlInput = (e) => {
+  // Save and restore cursor position
+  const saveCursorPosition = () => {
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0) {
+      return selection.getRangeAt(0);
+    }
+    return null;
+  };
+
+  const restoreCursorPosition = (range) => {
+    if (range) {
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  // Handle HTML editor input - this updates XML from HTML with debouncing
+  const handleHtmlInput = (e, immediate = false) => {
     if (!isUpdatingFromXml) {
       const newHtml = e.currentTarget.innerHTML;
-      const newXml = htmlToXml(newHtml);
-      
-      try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(newXml, 'text/xml');
-        const parserError = xmlDoc.querySelector('parsererror');
-        
-        if (!parserError) {
-          setXmlContent(newXml);
+
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Save cursor position before update
+      const cursorPosition = saveCursorPosition();
+
+      const updateXml = () => {
+        setIsSyncing(true);
+        const newXml = htmlToXml(newHtml);
+
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(newXml, 'text/xml');
+          const parserError = xmlDoc.querySelector('parsererror');
+
+          if (!parserError) {
+            setXmlContent(newXml);
+          }
+        } catch (error) {
+          console.error('XML validation error:', error);
         }
-      } catch (error) {
-        console.error('XML validation error:', error);
+
+        // Restore cursor position after a brief delay
+        setTimeout(() => {
+          restoreCursorPosition(cursorPosition);
+          setIsSyncing(false);
+        }, 10);
+      };
+
+      // Use immediate update for toolbar actions, debounced for typing
+      if (immediate) {
+        updateXml();
+      } else {
+        // Debounce typing for better performance (300ms delay)
+        debounceTimerRef.current = setTimeout(updateXml, 300);
       }
     }
   };
@@ -335,7 +380,7 @@ const XMLHTMLEditor = () => {
   const execCommand = (command, value = null) => {
     document.execCommand(command, false, value);
     editorRef.current.focus();
-    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }), 10);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
   };
 
   const insertTable = () => {
@@ -352,9 +397,9 @@ const XMLHTMLEditor = () => {
         tableHTML += '</tr>';
       }
       tableHTML += '</table>';
-      
+
       document.execCommand('insertHTML', false, tableHTML);
-      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }), 10);
+      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
     }
   };
 
@@ -363,7 +408,7 @@ const XMLHTMLEditor = () => {
     if (url) {
       const imgHTML = `<img src="${url}" alt="Image" style="max-width: 100%; height: auto; margin: 10px 0; display: block;" />`;
       document.execCommand('insertHTML', false, imgHTML);
-      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }), 10);
+      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
     }
   };
 
@@ -371,7 +416,7 @@ const XMLHTMLEditor = () => {
     const url = prompt('Enter URL:', 'https://');
     if (url) {
       document.execCommand('createLink', false, url);
-      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }), 10);
+      setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
     }
   };
 
@@ -395,9 +440,9 @@ const XMLHTMLEditor = () => {
       <h1>Page ${nextPageNum} Content</h1>
       <p>Start typing here...</p>
     </div>`;
-    
+
     document.execCommand('insertHTML', false, pageHTML);
-    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }), 10);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
   };
 
   // Download functions
@@ -604,9 +649,17 @@ ${htmlContent}
 
           {/* HTML Visual Editor */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-white" />
-              <h2 className="text-white font-semibold">Visual Editor</h2>
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-white" />
+                <h2 className="text-white font-semibold">Visual Editor</h2>
+              </div>
+              {isSyncing && (
+                <div className="flex items-center gap-2 text-white text-xs">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                  <span>Syncing...</span>
+                </div>
+              )}
             </div>
             
             {/* Toolbar */}
