@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Code, Download, Upload, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Image as ImageIcon, Table, Link as LinkIcon, Scissors, Strikethrough, Heading1, Heading2, Heading3, Quote, Minus, Eraser, RotateCcw, RotateCw } from 'lucide-react';
+import { FileText, Code, Download, Upload, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Image as ImageIcon, Table, Link as LinkIcon, Scissors, Strikethrough, Heading1, Heading2, Heading3, Quote, Minus, Eraser, RotateCcw, RotateCw, Save, Cloud, CheckCircle } from 'lucide-react';
+import { documentAPI, wsClient } from './api';
 
 const XMLHTMLEditor = () => {
   const [xmlContent, setXmlContent] = useState(`<?xml version="1.0" encoding="UTF-8"?>
@@ -54,6 +55,14 @@ const XMLHTMLEditor = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Document management state
+  const [currentDocumentId, setCurrentDocumentId] = useState(null);
+  const [documentTitle, setDocumentTitle] = useState('Untitled Document');
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle, saving, saved, error
+  const autoSaveTimerRef = useRef(null);
 
   // Convert XML to HTML with support for pages, tables and images
   const xmlToHtml = (xml) => {
@@ -606,6 +615,119 @@ ${htmlContent}
     }
   };
 
+  // Backend integration functions
+  const saveDocument = async () => {
+    try {
+      setIsSaving(true);
+      setSaveStatus('saving');
+
+      const documentData = {
+        title: documentTitle,
+        xmlContent,
+        htmlContent
+      };
+
+      let savedDoc;
+      if (currentDocumentId) {
+        // Update existing document
+        savedDoc = await documentAPI.updateDocument(currentDocumentId, documentData);
+      } else {
+        // Create new document
+        savedDoc = await documentAPI.createDocument(documentData);
+        setCurrentDocumentId(savedDoc.id);
+      }
+
+      setLastSaved(new Date());
+      setSaveStatus('saved');
+
+      // Reset status after 2 seconds
+      setTimeout(() => setSaveStatus('idle'), 2000);
+
+      console.log('Document saved successfully:', savedDoc.id);
+    } catch (error) {
+      console.error('Error saving document:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const loadDocument = async (id) => {
+    try {
+      const document = await documentAPI.getDocument(id);
+      setCurrentDocumentId(document.id);
+      setDocumentTitle(document.title);
+      setXmlContent(document.xmlContent);
+      // HTML will be auto-generated from XML
+      console.log('Document loaded:', document.id);
+    } catch (error) {
+      console.error('Error loading document:', error);
+      alert('Failed to load document');
+    }
+  };
+
+  const createNewDocument = () => {
+    if (confirm('Create a new document? Unsaved changes will be lost.')) {
+      setCurrentDocumentId(null);
+      setDocumentTitle('Untitled Document');
+      setXmlContent(`<?xml version="1.0" encoding="UTF-8"?>
+<document>
+  <page number="1">
+    <title>New Document</title>
+    <section>
+      <paragraph>Start editing here...</paragraph>
+    </section>
+  </page>
+</document>`);
+    }
+  };
+
+  // Auto-save effect
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set up auto-save after 2 seconds of inactivity
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (xmlContent && !isSaving) {
+        console.log('Auto-saving document...');
+        saveDocument();
+      }
+    }, 2000);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [xmlContent, isInitialized]);
+
+  // WebSocket integration for real-time sync
+  useEffect(() => {
+    // Connect to WebSocket
+    wsClient.connect();
+
+    // Listen for document updates
+    wsClient.on('document-updated', (data) => {
+      if (data.documentId === currentDocumentId && !isSaving) {
+        console.log('Document updated from another client');
+        // Update local content if not currently editing
+        if (!isUpdatingFromXml && !isUpdatingFromHtmlRef.current) {
+          setXmlContent(data.document.xmlContent);
+        }
+      }
+    });
+
+    return () => {
+      wsClient.disconnect();
+    };
+  }, [currentDocumentId]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -618,10 +740,35 @@ ${htmlContent}
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">XML to HTML Editor with Pages</h1>
-                <p className="text-gray-600 text-sm">Edit HTML visually with pagination support - Bidirectional sync enabled</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-gray-600 text-sm">Edit HTML visually with pagination support - Bidirectional sync enabled</p>
+                  {saveStatus === 'saved' && (
+                    <div className="flex items-center gap-1 text-green-600 text-xs">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Saved</span>
+                    </div>
+                  )}
+                  {saveStatus === 'saving' && (
+                    <div className="flex items-center gap-1 text-blue-600 text-xs">
+                      <Cloud className="w-3 h-3 animate-pulse" />
+                      <span>Saving...</span>
+                    </div>
+                  )}
+                  {saveStatus === 'error' && (
+                    <div className="text-red-600 text-xs">Save failed</div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={saveDocument}
+                disabled={isSaving}
+                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 disabled:bg-gray-400 flex items-center gap-2 transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
               <label className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 cursor-pointer flex items-center gap-2 transition-colors">
                 <Upload className="w-4 h-4" />
                 Upload XML
