@@ -50,7 +50,7 @@ const XMLHTMLEditor = () => {
   const [htmlContent, setHtmlContent] = useState('');
   const editorRef = useRef(null);
   const [isUpdatingFromXml, setIsUpdatingFromXml] = useState(false);
-  const [isUpdatingFromHtml, setIsUpdatingFromHtml] = useState(false);
+  const isUpdatingFromHtmlRef = useRef(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const debounceTimerRef = useRef(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -294,7 +294,7 @@ const XMLHTMLEditor = () => {
 
   // Update HTML when XML changes (after initialization)
   useEffect(() => {
-    if (isInitialized && !isUpdatingFromXml && !isUpdatingFromHtml) {
+    if (isInitialized && !isUpdatingFromXml && !isUpdatingFromHtmlRef.current) {
       setIsUpdatingFromXml(true);
       const html = xmlToHtml(xmlContent);
       setHtmlContent(html);
@@ -302,7 +302,7 @@ const XMLHTMLEditor = () => {
       // Reset flag after state update
       setTimeout(() => setIsUpdatingFromXml(false), 0);
     }
-  }, [xmlContent, isInitialized, isUpdatingFromHtml]);
+  }, [xmlContent, isInitialized]);
 
   // Update the editor content when HTML changes
   useEffect(() => {
@@ -326,7 +326,7 @@ const XMLHTMLEditor = () => {
 
       const updateXml = () => {
         setIsSyncing(true);
-        setIsUpdatingFromHtml(true);
+        isUpdatingFromHtmlRef.current = true;
 
         const newXml = htmlToXml(newHtml);
 
@@ -344,7 +344,7 @@ const XMLHTMLEditor = () => {
 
         // Reset flags after update completes
         setTimeout(() => {
-          setIsUpdatingFromHtml(false);
+          isUpdatingFromHtmlRef.current = false;
           setIsSyncing(false);
         }, 50);
       };
