@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Code, Download, Upload, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Image as ImageIcon, Table, Link as LinkIcon, Scissors } from 'lucide-react';
+import { FileText, Code, Download, Upload, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Image as ImageIcon, Table, Link as LinkIcon, Scissors, Strikethrough, Heading1, Heading2, Heading3, Quote, Minus, Eraser, RotateCcw, RotateCw } from 'lucide-react';
 
 const XMLHTMLEditor = () => {
   const [xmlContent, setXmlContent] = useState(`<?xml version="1.0" encoding="UTF-8"?>
@@ -428,6 +428,38 @@ const XMLHTMLEditor = () => {
     setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
   };
 
+  // Additional formatting functions
+  const formatAsHeading = (level) => {
+    const tag = `h${level}`;
+    document.execCommand('formatBlock', false, tag);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
+  const insertBlockquote = () => {
+    document.execCommand('formatBlock', false, 'blockquote');
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
+  const insertHorizontalRule = () => {
+    document.execCommand('insertHorizontalRule', false, null);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
+  const clearFormatting = () => {
+    document.execCommand('removeFormat', false, null);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
+  const undoEdit = () => {
+    document.execCommand('undo', false, null);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
+  const redoEdit = () => {
+    document.execCommand('redo', false, null);
+    setTimeout(() => handleHtmlInput({ currentTarget: editorRef.current }, true), 10);
+  };
+
   // Download functions
   const downloadXml = () => {
     const blob = new Blob([xmlContent], { type: 'text/xml' });
@@ -668,7 +700,39 @@ ${htmlContent}
               >
                 <Underline className="w-4 h-4" />
               </button>
-              
+              <button
+                onClick={() => execCommand('strikeThrough')}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Strikethrough"
+              >
+                <Strikethrough className="w-4 h-4" />
+              </button>
+
+              <div className="w-px bg-gray-300 mx-1"></div>
+
+              {/* Heading Levels */}
+              <button
+                onClick={() => formatAsHeading(1)}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Heading 1"
+              >
+                <Heading1 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => formatAsHeading(2)}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Heading 2"
+              >
+                <Heading2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => formatAsHeading(3)}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Heading 3"
+              >
+                <Heading3 className="w-4 h-4" />
+              </button>
+
               <div className="w-px bg-gray-300 mx-1"></div>
               
               <button
@@ -709,7 +773,21 @@ ${htmlContent}
               >
                 <ListOrdered className="w-4 h-4" />
               </button>
-              
+              <button
+                onClick={insertBlockquote}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Insert Blockquote"
+              >
+                <Quote className="w-4 h-4" />
+              </button>
+              <button
+                onClick={insertHorizontalRule}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Insert Horizontal Line"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+
               <div className="w-px bg-gray-300 mx-1"></div>
               
               <button
@@ -733,9 +811,34 @@ ${htmlContent}
               >
                 <LinkIcon className="w-4 h-4" />
               </button>
-              
+
               <div className="w-px bg-gray-300 mx-1"></div>
-              
+
+              {/* Utility Tools */}
+              <button
+                onClick={clearFormatting}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Clear Formatting"
+              >
+                <Eraser className="w-4 h-4" />
+              </button>
+              <button
+                onClick={undoEdit}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Undo (Ctrl+Z)"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+              <button
+                onClick={redoEdit}
+                className="p-2 hover:bg-gray-200 rounded transition-colors"
+                title="Redo (Ctrl+Y)"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
+
+              <div className="w-px bg-gray-300 mx-1"></div>
+
               <button
                 onClick={insertPageBreak}
                 className="p-2 hover:bg-gray-200 rounded transition-colors bg-blue-100"
